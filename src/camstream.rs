@@ -7,11 +7,12 @@
 // IMPORTS
 // -----------------------------------------------------------------------------------------------
 
-use image::{DynamicImage, GenericImageView, GrayImage, ImageFormat};
+use image::{DynamicImage, GrayImage, ImageFormat};
 use rscam::{Camera, Frame};
 
 use crate::error::{Result, Error};
 use crate::rectification::{RectifParams, StereoRectifParams};
+use crate::GrayFloatImage;
 
 // -----------------------------------------------------------------------------------------------
 // TRAITS
@@ -48,10 +49,10 @@ pub struct StereoCamStream {
 /// A frame from a stereo camera stream containing both images.
 pub struct StereoFrame {
     /// The left image
-    pub left: DynamicImage,
+    pub left: GrayFloatImage,
 
     /// The right image
-    pub right: DynamicImage
+    pub right: GrayFloatImage
 }
 
 // -----------------------------------------------------------------------------------------------
@@ -72,7 +73,7 @@ impl CamStream for MonoCamStream {
 
         // Rectify the images if there is a value for rectif_params
         match self.rectif_params {
-            Some(ref r) => Ok(r.rectify(&img)),
+            Some(ref r) => Ok(r.rectify(&img).to_dynamic_luma8()),
             None => Ok(img)
         }
     }
@@ -105,8 +106,8 @@ impl CamStream for StereoCamStream {
                 })
             },
             None => Ok(StereoFrame {
-                left: left_img,
-                right: right_img
+                left: GrayFloatImage::from_dynamic(&left_img),
+                right: GrayFloatImage::from_dynamic(&right_img)
             })
         }
     }
@@ -116,17 +117,17 @@ impl StereoFrame {
 
     /// Get the width of an individual image in the frame
     pub fn width(&self) -> u32 {
-        self.left.width()
+        self.left.width() as u32
     }
 
     /// Get the height of an individual image in the frame
     pub fn height(&self) -> u32 {
-        self.left.height()
+        self.left.height() as u32
     }
 
     /// Convert the frame into a pair of luma images
     pub fn to_luma_pair(self) -> (GrayImage, GrayImage) {
-        (self.left.to_luma(), self.right.to_luma())
+        (self.left.to_dynamic_luma8().to_luma(), self.right.to_dynamic_luma8().to_luma())
     }
 }
 

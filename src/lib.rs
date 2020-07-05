@@ -67,6 +67,7 @@
 
 pub use builder::{CamStreamBuilder, Rectifiable};
 pub use camstream::{CamStream, MonoCamStream, StereoCamStream, StereoFrame};
+pub use crate::image::GrayFloatImage;
 
 // -----------------------------------------------------------------------------------------------
 // MODULES
@@ -75,6 +76,7 @@ pub use camstream::{CamStream, MonoCamStream, StereoCamStream, StereoFrame};
 mod builder;
 mod camstream;
 mod error;
+mod image;
 mod rectification;
 
 pub mod prelude {

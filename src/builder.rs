@@ -14,7 +14,7 @@ use rscam::Config;
 
 use crate::error::{Error, Result};
 use crate::rectification::{RectifParams, StereoRectifParams};
-use crate::camstream::{CamStream, StereoCamStream};
+use crate::camstream::StereoCamStream;
 use image::ImageFormat;
 
 // -----------------------------------------------------------------------------------------------

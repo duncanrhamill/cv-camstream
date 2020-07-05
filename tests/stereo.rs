@@ -15,14 +15,19 @@ const HEIGHT: usize = 480;
 #[test]
 fn stereo() -> Result<(), Box<dyn std::error::Error>> {
 
+    println!("Starting...");
+
     let mut camstream = CamStreamBuilder::new()
         .stereo()
         .left_path("/dev/video0")?
         .right_path("/dev/video2")?
+        .rectif_params_from_file("tests/stereo_bench_drh_01.toml")?
         .interval((1, 30))
         .resolution((640, 480))
         .format(b"MJPG")?
         .build()?;
+
+    println!("Cameras built");
 
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
 
