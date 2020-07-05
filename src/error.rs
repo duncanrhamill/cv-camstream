@@ -8,7 +8,6 @@
 
 use std::path::PathBuf;
 
-use rscam;
 use serde_any;
 use thiserror;
 
@@ -44,5 +43,14 @@ pub enum Error {
     CameraCaptureError(std::io::Error),
 
     #[error("Error occured while converting an image: {0}")]
-    ImageConversionError(image::ImageError)
+    ImageConversionError(image::ImageError),
+
+    #[error("Error building the camera stream: {0}")]
+    CamStreamBuildError(String),
+    
+    #[error("Error starting the camera stream: {0}")]
+    CamStartError(rscam::Error),
+
+    #[error("Provided FourCC image format code ({0}) is not supported by the image library")]
+    ImageFormatError(String)
 }

@@ -14,6 +14,8 @@ use rscam::Config;
 
 use crate::error::{Error, Result};
 use crate::rectification::{RectifParams, StereoRectifParams};
+use crate::camstream::{CamStream, StereoCamStream};
+use image::ImageFormat;
 
 // -----------------------------------------------------------------------------------------------
 // TRAITS
@@ -66,6 +68,8 @@ pub struct StereoStreamBuilder<'a> {
 
     rectif_params: Option<StereoRectifParams>,
 
+    img_format: Option<ImageFormat>,
+
     left_config: Config<'a>,
     right_config: Config<'a>
 }
@@ -92,6 +96,7 @@ impl CamStreamBuilder {
             left_path: None,
             right_path: None,
             rectif_params: None,
+            img_format: None,
             left_config: Config::default(),
             right_config: Config::default()
         }
@@ -221,11 +226,17 @@ impl<'a> StereoStreamBuilder<'a> {
     /// Set the format of the images.
     ///
     /// Uses the FourCC notation, default value is `b"YUYV"`.
-    pub fn format(mut self, format: &'a [u8]) -> Self {
+    pub fn format(mut self, format: &'a [u8]) -> Result<Self> {
+        self.img_format = format_from_fourcc(format);
+
+        if self.img_format.is_none() {
+            return Err(Error::ImageFormatError(String::from_utf8(format.into()).unwrap()));
+        }
+
         self.left_config.format = format;
         self.right_config.format = format;
 
-        self
+        Ok(self)
     }
 
     /// Set the storage method for interlaced video.
@@ -247,6 +258,43 @@ impl<'a> StereoStreamBuilder<'a> {
 
         self
     }
+
+    /// Build the stereo camera stream object.
+    ///
+    /// This function can fail if the underlying V4L2 construction fails.
+    pub fn build(self) -> Result<StereoCamStream> {
+        // Confirm that required paths are present
+        if self.left_path.is_none() || self.right_path.is_none() {
+            return Err(Error::CamStreamBuildError(String::from("Missing camera path")));
+        }
+
+        // Build left camera
+        let mut left_cam = rscam::Camera::new(self.left_path
+            .unwrap()
+            .to_str()
+            .expect("Cannot convert left path to &str")
+        ).map_err(|e| Error::CamStreamBuildError(format!("{}", e)))?;
+
+        // Build right camera
+        let mut right_cam = rscam::Camera::new(self.right_path
+            .unwrap()
+            .to_str()
+            .expect("Cannot convert right path to &str")
+        ).map_err(|e| Error::CamStreamBuildError(format!("{}", e)))?;
+
+        // Start the cameras
+        left_cam.start(&self.left_config).map_err(|e| Error::CamStartError(e))?;
+        right_cam.start(&self.right_config).map_err(|e| Error::CamStartError(e))?;
+
+        // Return the new stream object
+        Ok(StereoCamStream {
+            left_cam,
+            right_cam,
+            img_format: self.img_format.unwrap(),
+            rectif_params: self.rectif_params
+        }) 
+        
+    }
 }
 
 impl<'a> Rectifiable for StereoStreamBuilder<'a> {
@@ -256,6 +304,17 @@ impl<'a> Rectifiable for StereoStreamBuilder<'a> {
         self.rectif_params = Some(params);
 
         self
+    }
+}
+
+// -----------------------------------------------------------------------------------------------
+// PRIVATE FUNCTIONS
+// -----------------------------------------------------------------------------------------------
+
+fn format_from_fourcc(format: &[u8]) -> Option<ImageFormat> {
+    match format {
+        b"MJPG" => Some(ImageFormat::Jpeg),
+        _ => None
     }
 }
 

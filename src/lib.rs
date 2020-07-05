@@ -66,6 +66,7 @@
 // -----------------------------------------------------------------------------------------------
 
 pub use builder::{CamStreamBuilder, Rectifiable};
+pub use camstream::{CamStream, MonoCamStream, StereoCamStream, StereoFrame};
 
 // -----------------------------------------------------------------------------------------------
 // MODULES
@@ -75,3 +76,8 @@ mod builder;
 mod camstream;
 mod error;
 mod rectification;
+
+pub mod prelude {
+    pub use crate::{CamStreamBuilder, Rectifiable};
+    pub use crate::{CamStream, MonoCamStream, StereoCamStream, StereoFrame};
+}

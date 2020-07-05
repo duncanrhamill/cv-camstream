@@ -7,7 +7,7 @@
 // IMPORTS
 // -----------------------------------------------------------------------------------------------
 
-use image::DynamicImage;
+use image::{DynamicImage, GenericImageView, GrayImage, ImageFormat};
 use rscam::{Camera, Frame};
 
 use crate::error::{Result, Error};
@@ -31,14 +31,18 @@ pub trait CamStream {
 pub struct MonoCamStream {
     camera: Camera,
 
+    img_format: ImageFormat,
+
     rectif_params: Option<RectifParams>
 }
 
 pub struct StereoCamStream {
-    left_cam: Camera,
-    right_cam: Camera,
+    pub(crate) left_cam: Camera,
+    pub(crate) right_cam: Camera,
 
-    rectif_params: Option<StereoRectifParams>
+    pub(crate) img_format: ImageFormat,
+
+    pub(crate) rectif_params: Option<StereoRectifParams>
 }
 
 /// A frame from a stereo camera stream containing both images.
@@ -64,7 +68,7 @@ impl CamStream for MonoCamStream {
             .map_err(|e| Error::CameraCaptureError(e))?;
 
         // Convert the frame into an image
-        let img = rscam_frame_to_dynamic_image(rscam_frame)?;
+        let img = rscam_frame_to_dynamic_image(rscam_frame, self.img_format)?;
 
         // Rectify the images if there is a value for rectif_params
         match self.rectif_params {
@@ -86,8 +90,8 @@ impl CamStream for StereoCamStream {
             .map_err(|e| Error::CameraCaptureError(e))?;
 
         // Convert the images
-        let left_img = rscam_frame_to_dynamic_image(left_frame)?;
-        let right_img = rscam_frame_to_dynamic_image(right_frame)?;
+        let left_img = rscam_frame_to_dynamic_image(left_frame, self.img_format)?;
+        let right_img = rscam_frame_to_dynamic_image(right_frame, self.img_format)?;
 
         // Rectify the images if there are rectif_params
         match self.rectif_params {
@@ -108,12 +112,30 @@ impl CamStream for StereoCamStream {
     }
 }
 
+impl StereoFrame {
+
+    /// Get the width of an individual image in the frame
+    pub fn width(&self) -> u32 {
+        self.left.width()
+    }
+
+    /// Get the height of an individual image in the frame
+    pub fn height(&self) -> u32 {
+        self.left.height()
+    }
+
+    /// Convert the frame into a pair of luma images
+    pub fn to_luma_pair(self) -> (GrayImage, GrayImage) {
+        (self.left.to_luma(), self.right.to_luma())
+    }
+}
+
 // -----------------------------------------------------------------------------------------------
 // PRIVATE FUNCTIONS
 // -----------------------------------------------------------------------------------------------
 
 /// Convert an `rscam::Frame` struct into an `image::DynamicImage` struct.
-fn rscam_frame_to_dynamic_image(frame: Frame) -> Result<DynamicImage> {
-    image::load_from_memory(&frame)
+fn rscam_frame_to_dynamic_image(frame: Frame, format: ImageFormat) -> Result<DynamicImage> {
+    image::load_from_memory_with_format(&frame, format)
         .map_err(|e| Error::ImageConversionError(e))
 }
