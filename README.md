@@ -27,11 +27,11 @@ cv_camstream = "0.1"
 
 ## Usage
 
-This crate provides support for mono and stereo cameras through a builder API `CamStream`.
+This crate provides support for mono and stereo cameras through a builder API `CamStreamBuilder`.
 
 ```rust
 // Example mono camera builder pattern
-let camera = CamStream::new()
+let camera = CamStreamBuilder::new()
     // Create a mono camera object
     .mono()
     // The path that the device can be found at, which returns a result
@@ -45,6 +45,7 @@ let camera = CamStream::new()
     .interval(1, 30)
     .resolution(640, 480)
     .format(b"MJPG")
+    .expect("Unsupported image format")
     // Construct the object
     .build()
     .expect("Failed to open camera");
@@ -57,3 +58,8 @@ let img = camera.capture().expect("Failed to get camera image")
 ```
 
 which returns an [`image::DynamicImage`](https://docs.rs/image/0.23.6/image/) result.
+
+For stereo cameras the process is similar, although you must specify the left and right path
+seperately through `left_path` and `right_path`. A `StereoCamStream` object returns `StereoFrame`s,
+a struct which contains the left and right image respectively. Convenience functions are provided
+to convert a frame into pairs (tuples) of different types of images from the `image` crate.

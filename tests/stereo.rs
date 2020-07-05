@@ -40,8 +40,8 @@ fn stereo() -> Result<(), Box<dyn std::error::Error>> {
             .capture()?
             .to_luma_pair();
 
-        for y in 0..(HEIGHT - 1) {
-            for x in 0..(WIDTH - 1) {
+        for y in 0..(HEIGHT) {
+            for x in 0..(WIDTH) {
                 if x > (WIDTH / 2) - 1 {
                     buffer[x + y * WIDTH] = luma_to_u32(right.get_pixel(
                         (x - (WIDTH / 2)) as u32, 
