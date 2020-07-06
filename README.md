@@ -57,7 +57,7 @@ Once the camera object has been built it is accessed through:
 let img = camera.capture().expect("Failed to get camera image")
 ```
 
-which returns an [`image::DynamicImage`](https://docs.rs/image/0.23.6/image/) result.
+which returns an `GrayFloatImage` result.
 
 For stereo cameras the process is similar, although you must specify the left and right path
 seperately through `left_path` and `right_path`. A `StereoCamStream` object returns `StereoFrame`s,

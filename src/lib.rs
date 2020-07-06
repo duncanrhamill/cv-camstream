@@ -57,7 +57,12 @@
 //! let img = camera.capture().expect("Failed to get camera image")
 //! ```
 //!
-//! which returns an [`image::DynamicImage`](https://docs.rs/image/0.23.6/image/) result.
+//! which returns an [`GrayFloatImage`] result.
+//! 
+//! For stereo cameras the process is similar, although you must specify the left and right path
+//! seperately through `left_path` and `right_path`. A `StereoCamStream` object returns `StereoFrame`s,
+//! a struct which contains the left and right image respectively. Convenience functions are provided
+//! to convert a frame into pairs (tuples) of different types of images from the `image` crate.
 
 #[deny(missing_docs)]
 
@@ -82,4 +87,5 @@ mod rectification;
 pub mod prelude {
     pub use crate::{CamStreamBuilder, Rectifiable};
     pub use crate::{CamStream, MonoCamStream, StereoCamStream, StereoFrame};
+    pub use crate::GrayFloatImage;
 }

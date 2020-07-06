@@ -60,7 +60,7 @@ pub struct StereoFrame {
 // -----------------------------------------------------------------------------------------------
 
 impl CamStream for MonoCamStream {
-    type Frame = DynamicImage;
+    type Frame = GrayFloatImage;
 
     /// Capture an image from the camera.
     fn capture(&mut self) -> Result<Self::Frame> {
@@ -69,11 +69,13 @@ impl CamStream for MonoCamStream {
             .map_err(|e| Error::CameraCaptureError(e))?;
 
         // Convert the frame into an image
-        let img = rscam_frame_to_dynamic_image(rscam_frame, self.img_format)?;
+        let img = GrayFloatImage::from_dynamic(
+            &rscam_frame_to_dynamic_image(rscam_frame, self.img_format)?
+        );
 
         // Rectify the images if there is a value for rectif_params
         match self.rectif_params {
-            Some(ref r) => Ok(r.rectify(&img).to_dynamic_luma8()),
+            Some(ref r) => Ok(r.rectify(&img)),
             None => Ok(img)
         }
     }
@@ -91,8 +93,12 @@ impl CamStream for StereoCamStream {
             .map_err(|e| Error::CameraCaptureError(e))?;
 
         // Convert the images
-        let left_img = rscam_frame_to_dynamic_image(left_frame, self.img_format)?;
-        let right_img = rscam_frame_to_dynamic_image(right_frame, self.img_format)?;
+        let left_img = GrayFloatImage::from_dynamic(
+            &rscam_frame_to_dynamic_image(left_frame, self.img_format)?
+        );
+        let right_img = GrayFloatImage::from_dynamic(
+            &rscam_frame_to_dynamic_image(right_frame, self.img_format)?
+        );
 
         // Rectify the images if there are rectif_params
         match self.rectif_params {
@@ -106,8 +112,8 @@ impl CamStream for StereoCamStream {
                 })
             },
             None => Ok(StereoFrame {
-                left: GrayFloatImage::from_dynamic(&left_img),
-                right: GrayFloatImage::from_dynamic(&right_img)
+                left: left_img,
+                right: right_img
             })
         }
     }
@@ -126,7 +132,7 @@ impl StereoFrame {
     }
 
     /// Convert the frame into a pair of luma images
-    pub fn to_luma_pair(self) -> (GrayImage, GrayImage) {
+    pub fn to_luma8_pair(self) -> (GrayImage, GrayImage) {
         (self.left.to_dynamic_luma8().to_luma(), self.right.to_dynamic_luma8().to_luma())
     }
 }

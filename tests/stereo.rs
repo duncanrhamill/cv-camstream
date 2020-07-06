@@ -2,11 +2,14 @@
 //!
 //! Designed to test stereo camera display.
 
+use std::io::Write;
 use cv_camstream::prelude::*;
+use image::GrayImage;
 use minifb::{Key, Window, WindowOptions};
 
 const WIDTH: usize = 640 * 2;
 const HEIGHT: usize = 480;
+const NUM_FRAMES: usize = 100;
 
 // -----------------------------------------------------------------------------------------------
 // MAIN
@@ -40,10 +43,17 @@ fn stereo() -> Result<(), Box<dyn std::error::Error>> {
 
     window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
-    while window.is_open() && !window.is_key_down(Key::Escape) {
-        let (left, right) = camstream
+    let mut frame_num = 0;
+
+    let mut left = GrayImage::new(WIDTH as u32, HEIGHT as u32);
+    let mut right = GrayImage::new(WIDTH as u32, HEIGHT as u32);
+
+    while window.is_open() && !window.is_key_down(Key::Escape) && frame_num < NUM_FRAMES {
+        let pair = camstream
             .capture()?
-            .to_luma_pair();
+            .to_luma8_pair();
+        left = pair.0;
+        right = pair.1;
 
         for y in 0..(HEIGHT) {
             for x in 0..(WIDTH) {
@@ -60,7 +70,15 @@ fn stereo() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         window.update_with_buffer(&buffer, WIDTH, HEIGHT).unwrap();
+
+        print!("\rFrame count: {}/{}", frame_num, NUM_FRAMES);
+        std::io::stdout().flush()?;
+        frame_num += 1;
     }
+
+    // Save last frame
+    left.save("left.png")?;
+    right.save("right.png")?;
 
     Ok(())
 }

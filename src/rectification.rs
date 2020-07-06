@@ -10,7 +10,6 @@ use nalgebra::{Vector2, Point2};
 use cv_pinhole::{CameraIntrinsics, CameraIntrinsicsK1Distortion, NormalizedKeyPoint};
 use cv_core::{KeyPoint, CameraModel};
 use serde::Deserialize;
-use image::{DynamicImage, GenericImageView};
 
 use crate::error::{Result, Error};
 use crate::GrayFloatImage;
@@ -46,15 +45,6 @@ pub struct StereoRectifParams {
 
     /// Right hand camera parameters
     pub right: RectifParams
-}
-
-// -----------------------------------------------------------------------------------------------
-// ENUMERATIONS
-// -----------------------------------------------------------------------------------------------
-
-enum Intrisics {
-    Simple(CameraIntrinsics),
-    K1(CameraIntrinsicsK1Distortion)
 }
 
 // -----------------------------------------------------------------------------------------------
@@ -100,10 +90,7 @@ impl RectifParams {
     }
 
     /// Rectify an image using these parameters
-    pub fn rectify(&self, img: &DynamicImage) -> GrayFloatImage {
-
-        // Get a gray float image from the dynamic image
-        let grey_img = GrayFloatImage::from_dynamic(img);
+    pub fn rectify(&self, img: &GrayFloatImage) -> GrayFloatImage {
 
         // New empty image of equal size and colour space to the input image
         let mut rect_img = GrayFloatImage::new(
@@ -136,7 +123,7 @@ impl RectifParams {
                         let kp = intrinsics.uncalibrate(normkp);
 
                         // Set the pixel value for the new image
-                        *rect_img.0.get_pixel_mut(x, y) = linterp_pixels(kp, &grey_img);
+                        *rect_img.0.get_pixel_mut(x, y) = linterp_pixels(kp, img);
                     }   
                 }
 
@@ -165,7 +152,7 @@ impl RectifParams {
                         let kp = intrinsics.uncalibrate(normkp);
 
                         // Set the pixel value for the new image
-                        *rect_img.0.get_pixel_mut(x, y) = linterp_pixels(kp, &grey_img);
+                        *rect_img.0.get_pixel_mut(x, y) = linterp_pixels(kp, img);
                     }   
                 }
 
