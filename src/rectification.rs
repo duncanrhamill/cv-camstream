@@ -22,7 +22,7 @@ use crate::GrayFloatImage;
 ///
 /// These items map directly to the [`CameraIntrinsics`] structs, with the option of including a
 /// k1 parameter for radial distortion.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Copy, Clone)]
 pub struct RectifParams {
     /// Focal lengths (normalised by X and Y pixel sizes)
     pub focals: [f64; 2],
@@ -38,7 +38,7 @@ pub struct RectifParams {
 }
 
 /// Rectification parameters for a pair of stereo cameras
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Copy, Clone)]
 pub struct StereoRectifParams {
     /// Left hand camera parameters
     pub left: RectifParams,

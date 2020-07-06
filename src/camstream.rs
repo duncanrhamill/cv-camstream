@@ -7,12 +7,16 @@
 // IMPORTS
 // -----------------------------------------------------------------------------------------------
 
+use std::sync::mpsc::{channel, Sender, Receiver};
+use std::thread;
+
 use image::{DynamicImage, GrayImage, ImageFormat};
 use rscam::{Camera, Frame};
 
 use crate::error::{Result, Error};
 use crate::rectification::{RectifParams, StereoRectifParams};
 use crate::GrayFloatImage;
+use thread::JoinHandle;
 
 // -----------------------------------------------------------------------------------------------
 // TRAITS
@@ -38,12 +42,14 @@ pub struct MonoCamStream {
 }
 
 pub struct StereoCamStream {
-    pub(crate) left_cam: Camera,
-    pub(crate) right_cam: Camera,
+    left_jh: JoinHandle<()>,
+    right_jh: JoinHandle<()>,
 
-    pub(crate) img_format: ImageFormat,
+    left_tx: Sender<WorkerCmd>,
+    left_rx: Receiver<Result<(GrayFloatImage, u64)>>,
 
-    pub(crate) rectif_params: Option<StereoRectifParams>
+    right_tx: Sender<WorkerCmd>,
+    right_rx: Receiver<Result<(GrayFloatImage, u64)>>,
 }
 
 /// A frame from a stereo camera stream containing both images.
@@ -52,7 +58,26 @@ pub struct StereoFrame {
     pub left: GrayFloatImage,
 
     /// The right image
-    pub right: GrayFloatImage
+    pub right: GrayFloatImage,
+
+    /// The timestamp of the left image
+    pub left_timestamp: u64,
+
+    /// The timestamp of the right image
+    pub right_timestamp: u64
+}
+
+// -----------------------------------------------------------------------------------------------
+// ENUMERATIONS
+// -----------------------------------------------------------------------------------------------
+
+/// Commands that can be sent by the main thread to the worker threads.
+enum WorkerCmd {
+    /// Capture an image from the camera
+    Capture,
+
+    /// Stop acquisition
+    Stop
 }
 
 // -----------------------------------------------------------------------------------------------
@@ -81,41 +106,97 @@ impl CamStream for MonoCamStream {
     }
 }
 
+impl StereoCamStream {
+
+    /// Create a new instance of the camera stream
+    ///
+    /// 
+    pub(crate) fn new(
+        left_cam: Camera, 
+        right_cam: Camera, 
+        format: ImageFormat, 
+        rectif_params: Option<StereoRectifParams>
+    ) -> Self {
+        
+        // Create all sync objects
+        let (left_tx_cmd, left_rx_cmd) = channel();
+        let (left_tx_img, left_rx_img) = channel();
+        let (right_tx_cmd, right_rx_cmd) = channel();
+        let (right_tx_img, right_rx_img) = channel();
+
+        // Break out rectif params
+        let (left_rp, right_rp) = match rectif_params {
+            Some(srp) => (Some(srp.left), Some(srp.right)),
+            None => (None, None)
+        };
+
+        // Start processing threads
+        let left_jh = img_cap_thread(
+            left_cam, 
+            left_rx_cmd, 
+            left_tx_img, 
+            format, 
+            left_rp
+        );
+        let right_jh = img_cap_thread(
+            right_cam, 
+            right_rx_cmd, 
+            right_tx_img, 
+            format, 
+            right_rp
+        );
+
+        Self {
+            left_jh,
+            right_jh,
+            
+            left_tx: left_tx_cmd,
+            left_rx: left_rx_img,
+
+            right_tx: right_tx_cmd,
+            right_rx: right_rx_img
+        }
+    }
+
+    /// Stop the stream
+    pub fn stop(self) -> Result<()> {
+        self.left_tx.send(WorkerCmd::Stop).map_err(|_| Error::ChannelSendError)?;
+        self.right_tx.send(WorkerCmd::Stop).map_err(|_| Error::ChannelSendError)?;
+
+        self.left_jh.join().map_err(|_| Error::ThreadJoinError)?;
+        self.right_jh.join().map_err(|_| Error::ThreadJoinError)?;
+
+        Ok(())
+    }
+}
+
 impl CamStream for StereoCamStream {
     type Frame = StereoFrame;
 
     /// Capture a frame from the pair of stereo cameras.
     fn capture(&mut self) -> Result<Self::Frame> {
-        // Get the frames from each camera
-        let left_frame = self.left_cam.capture()
-            .map_err(|e| Error::CameraCaptureError(e))?;
-        let right_frame = self.right_cam.capture()
-            .map_err(|e| Error::CameraCaptureError(e))?;
+        // Send the capture commands
+        self.left_tx.send(WorkerCmd::Capture).map_err(|_| Error::ChannelSendError)?;
+        self.right_tx.send(WorkerCmd::Capture).map_err(|_| Error::ChannelSendError)?;
 
-        // Convert the images
-        let left_img = GrayFloatImage::from_dynamic(
-            &rscam_frame_to_dynamic_image(left_frame, self.img_format)?
-        );
-        let right_img = GrayFloatImage::from_dynamic(
-            &rscam_frame_to_dynamic_image(right_frame, self.img_format)?
-        );
+        // Wait for the images from each thread
+        let left = match self.left_rx.recv() {
+            Ok(Ok(i)) => i,
+            Ok(Err(e)) => return Err(e),
+            Err(e) => return Err(Error::ChannelReceiveError(e))
+        };
+        let right = match self.right_rx.recv() {
+            Ok(Ok(i)) => i,
+            Ok(Err(e)) => return Err(e),
+            Err(e) => return Err(Error::ChannelReceiveError(e))
+        };
 
-        // Rectify the images if there are rectif_params
-        match self.rectif_params {
-            Some(ref r) => {
-                let left = r.left.rectify(&left_img);
-                let right = r.right.rectify(&right_img);
-
-                Ok(StereoFrame {
-                    left, 
-                    right
-                })
-            },
-            None => Ok(StereoFrame {
-                left: left_img,
-                right: right_img
-            })
-        }
+        Ok(StereoFrame {
+            left: left.0,
+            right: right.0,
+            left_timestamp: left.1,
+            right_timestamp: right.1
+        })
     }
 }
 
@@ -145,4 +226,56 @@ impl StereoFrame {
 fn rscam_frame_to_dynamic_image(frame: Frame, format: ImageFormat) -> Result<DynamicImage> {
     image::load_from_memory_with_format(&frame, format)
         .map_err(|e| Error::ImageConversionError(e))
+}
+
+/// Capture images from the given camera in a seprate thread.
+fn img_cap_thread(
+    cam: Camera, 
+    cmd_rx: Receiver<WorkerCmd>, 
+    img_tx: Sender<Result<(GrayFloatImage, u64)>>,
+    format: ImageFormat,
+    rectif_params: Option<RectifParams>
+) -> JoinHandle<()> {
+    thread::spawn(move || {
+        while let Ok(cmd) = cmd_rx.recv() {
+            match cmd {
+                WorkerCmd::Capture => {
+                    
+                    let frame = match cam.capture() {
+                        Ok(f) => f,
+                        Err(e) => {
+                            img_tx.send(Err(Error::CameraCaptureError(e)))
+                                .expect("Failed to send reply to main thread");
+                            continue
+                        }
+                    };
+
+                    let timestamp = frame.get_timestamp();
+
+                    let dyn_img = match rscam_frame_to_dynamic_image(frame, format) {
+                        Ok(i) => i,
+                        Err(e) => {
+                            img_tx.send(Err(e)).expect("Failed to send reply to main thread");
+                            continue
+                        }
+                    };
+
+                    let mut img = GrayFloatImage::from_dynamic(&dyn_img);
+
+                    match rectif_params {
+                        Some(r) => {
+                            img = r.rectify(&img);
+                        },
+                        None => ()
+                    };
+
+                    img_tx.send(Ok((img, timestamp)))
+                        .expect("Error sending image to main thread");
+                },
+                WorkerCmd::Stop => {
+                    break
+                }
+            }
+        }
+    })
 }

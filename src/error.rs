@@ -52,5 +52,14 @@ pub enum Error {
     CamStartError(rscam::Error),
 
     #[error("Provided FourCC image format code ({0}) is not supported by the image library")]
-    ImageFormatError(String)
+    ImageFormatError(String),
+
+    #[error("Error recieving message from thread: {0}")]
+    ChannelReceiveError(std::sync::mpsc::RecvError),
+
+    #[error("Error while sending data through a channel")]
+    ChannelSendError,
+
+    #[error("Error while joining a thread")]
+    ThreadJoinError
 }

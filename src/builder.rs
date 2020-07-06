@@ -286,14 +286,13 @@ impl<'a> StereoStreamBuilder<'a> {
         left_cam.start(&self.left_config).map_err(|e| Error::CamStartError(e))?;
         right_cam.start(&self.right_config).map_err(|e| Error::CamStartError(e))?;
 
-        // Return the new stream object
-        Ok(StereoCamStream {
+        // Create new stream
+        Ok(StereoCamStream::new(
             left_cam,
             right_cam,
-            img_format: self.img_format.unwrap(),
-            rectif_params: self.rectif_params
-        }) 
-        
+            self.img_format.unwrap(),
+            self.rectif_params
+        ))
     }
 }
 

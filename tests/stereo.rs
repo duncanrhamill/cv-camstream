@@ -45,13 +45,19 @@ fn stereo() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut frame_num = 0;
 
+    let mut ts_diff = 0;
+
     let mut left = GrayImage::new(WIDTH as u32, HEIGHT as u32);
     let mut right = GrayImage::new(WIDTH as u32, HEIGHT as u32);
 
     while window.is_open() && !window.is_key_down(Key::Escape) && frame_num < NUM_FRAMES {
         let pair = camstream
-            .capture()?
-            .to_luma8_pair();
+            .capture()?;
+
+        ts_diff = (pair.left_timestamp as i64 - pair.right_timestamp as i64).abs();
+
+        let pair = pair.to_luma8_pair();
+
         left = pair.0;
         right = pair.1;
 
@@ -79,6 +85,8 @@ fn stereo() -> Result<(), Box<dyn std::error::Error>> {
     // Save last frame
     left.save("left.png")?;
     right.save("right.png")?;
+
+    println!("\nFinal timestamp difference: {}", ts_diff);
 
     Ok(())
 }
